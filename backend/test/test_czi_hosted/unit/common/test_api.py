@@ -4,9 +4,11 @@ import unittest
 import zlib
 from http import HTTPStatus
 import hashlib
+from unittest.mock import patch
 
 import pandas as pd
 import requests
+from backend.czi_hosted.common.config.app_config import AppConfig
 
 from backend.czi_hosted.data_common.matrix_loader import MatrixDataType
 from backend.test.test_czi_hosted.unit import (
@@ -384,7 +386,6 @@ class EndPoints(object):
         query_hash = hashlib.sha1(query.encode()).hexdigest()
         url = f"{self.URL_BASE}{endpoint}?key={query_hash}"
         result = self.session.post(url, headers=headers, data=query)
-
         self.assertEqual(result.status_code, HTTPStatus.OK)
         self.assertEqual(result.headers["Content-Type"], "application/octet-stream")
         df = decode_fbs.decode_matrix_FBS(result.content)
@@ -628,3 +629,64 @@ class EndPointsCxgAnnotations(unittest.TestCase, EndPointsAnnotations):
     def tearDownClass(cls):
         shutil.rmtree(cls.tmp_dir)
         stop_test_server(cls.ps)
+
+
+class DataLocator(unittest.TestCase, EndPointsAnnotations):
+    @classmethod
+    def setUpClass(cls):
+        cls._setupClass(cls, [f"{FIXTURES_ROOT}/pbmc3k.cxg", "--disable-annotations"])
+        cls.config = AppConfig()
+        cls.config.update_server_config(data_locator__s3__region_name="us-east-1")
+        cls.config.update_server_config(data_locator__api_base="api.test.cellxgene.com")
+        cls.config.update_server_config(multi_dataset__dataroot=FIXTURES_ROOT)
+        cls.config.complete_config()
+
+    @classmethod
+    def tearDownClass(cls):
+        stop_test_server(cls.ps)
+
+    def test_initialize(self):
+        endpoint = "schema"
+        url = f"{self.URL_BASE}{endpoint}"
+        result = self.session.get(url)
+        self.assertEqual(result.status_code, HTTPStatus.OK)
+        self.assertEqual(result.headers["Content-Type"], "application/json")
+        result_data = result.json()
+        self.assertEqual(result_data["schema"]["dataframe"]["nObs"], 2638)
+        self.assertEqual(len(result_data["schema"]["annotations"]["obs"]), 2)
+        self.assertEqual(
+            len(result_data["schema"]["annotations"]["obs"]["columns"]),  5
+        )
+
+    def test_config(self):
+        # mock_get.return_value = {}
+        endpoint = "config"
+        url = f"{self.URL_BASE}{endpoint}"
+        result = self.session.get(url)
+        self.assertEqual(result.status_code, HTTPStatus.OK)
+        self.assertEqual(result.headers["Content-Type"], "application/json")
+        result_data = result.json()
+        self.assertIn("library_versions", result_data["config"])
+        self.assertEqual(result_data["config"]["displayNames"]["dataset"], "pbmc3k")
+
+    @patch('backend.czi_hosted.app.app.requests.get')
+    def test_get_annotations_obs_fbs(self, mock_get):
+        mock_get.return_value = {}
+
+        endpoint = "annotations/obs"
+        url = f"{self.URL_BASE}{endpoint}"
+        header = {"Accept": "application/octet-stream"}
+        result = self.session.get(url, headers=header)
+        self.assertEqual(result.status_code, HTTPStatus.OK)
+        self.assertEqual(result.headers["Content-Type"], "application/octet-stream")
+        df = decode_fbs.decode_matrix_FBS(result.content)
+        self.assertEqual(df["n_rows"], 2638)
+        self.assertEqual(df["n_cols"], 5)
+        self.assertIsNotNone(df["columns"])
+        self.assertIsNone(df["row_idx"])
+        self.assertEqual(len(df["columns"]), df["n_cols"])
+        obs_index_col_name = self.schema["schema"]["annotations"]["obs"]["index"]
+        self.assertCountEqual(
+            df["col_idx"],
+            [obs_index_col_name, "n_genes", "percent_mito", "n_counts", "louvain"])
+

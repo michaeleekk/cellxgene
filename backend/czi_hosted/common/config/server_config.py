@@ -202,9 +202,9 @@ class ServerConfig(BaseConfig):
 
     def handle_data_locator(self):
         self.validate_correct_type_of_configuration_attribute("data_locator__s3__region_name", (type(None), bool, str))
-        self.validate_correct_type_of_configuration_attribute("data_locator__api_base", (type(None), bool, str))
-        if self.data_locator__s3__region_name and self.data_locator__s3__api_base:
-            raise ConfigurationError(f"You must supply an s3 region or an api base path. Not Both. ")
+        self.validate_correct_type_of_configuration_attribute("data_locator__api_base", (type(None), str))
+        # if self.data_locator__s3__region_name and self.data_locator__api_base:
+        #     raise ConfigurationError(f"You must supply an s3 region or an api base path. Not Both. ")
         if self.data_locator__s3__region_name is True:
             path = self.single_dataset__datapath or self.multi_dataset__dataroot
 

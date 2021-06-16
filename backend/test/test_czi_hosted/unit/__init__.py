@@ -1,20 +1,27 @@
+import errno
+import logging
 import os
 import random
 import shutil
+import subprocess
+import sys
 import tempfile
 import time
 from contextlib import contextmanager
 from os import path
 from subprocess import Popen
 
+import click
 import pandas as pd
 import requests
 
+from backend.czi_hosted.cli.launch import CliLaunchServer
 from backend.czi_hosted.common.annotations.hosted_tiledb import AnnotationsHostedTileDB
 from backend.czi_hosted.common.annotations.local_file_csv import AnnotationsLocalFile
 from backend.czi_hosted.common.config import DEFAULT_SERVER_PORT
 from backend.czi_hosted.common.config.app_config import AppConfig
 from backend.common.utils.data_locator import DataLocator
+from backend.common.errors import ConfigurationError, DatasetAccessError
 from backend.common.utils.utils import find_available_port
 from backend.common.fbs.matrix import encode_matrix_fbs
 from backend.czi_hosted.data_common.matrix_loader import MatrixDataType, MatrixDataLoader
@@ -133,7 +140,7 @@ def app_config(data_locator, backed=False, extra_server_config={}, extra_dataset
     return config
 
 
-def start_test_server(command_line_args=[], app_config=None, env=None):
+def start_test_server(command_line_args=[], app_config_info=None, env=None):
     """
     Command line arguments can be passed in, as well as an app_config.
     This function is meant to be used like this, for example:
@@ -150,7 +157,35 @@ def start_test_server(command_line_args=[], app_config=None, env=None):
     yaml config file, which this server will read and parse.
     """
 
-    command = ["cellxgene", "--no-upgrade-check", "launch", "--verbose"]
+    # if bool(os.environ.get("DEV_INSTALL", False)):
+    #     if not bool(os.environ.get("DEV_INSTALLED", False)):
+    #         subprocess.run(["pip", "install", "-e", "../../"])
+    #         os.environ["DEV_INSTALLED"] = "True"
+    #         import pdb
+    #         pdb.set_trace()
+    # command = ["cellxgene", "--no-upgrade-check", "launch", "--verbose"]
+    # if "-p" in command_line_args:
+    #     port = int(command_line_args[command_line_args.index("-p") + 1])
+    # elif "--port" in command_line_args:
+    #     port = int(command_line_args[command_line_args.index("--port") + 1])
+    # else:
+    #     start = random.randint(DEFAULT_SERVER_PORT, 2 ** 16 - 1)
+    #     port = int(os.environ.get("CXG_SERVER_PORT", start))
+    #     port = find_available_port("localhost", port)
+    #     command += ["--port=%d" % port]
+    #
+    # command += command_line_args
+    #
+    # tempdir = None
+    # if app_config:
+    #     tempdir = tempfile.TemporaryDirectory()
+    #     config_file = os.path.join(tempdir.name, "config.yaml")
+    #     app_config.write_config(config_file)
+    #     command.extend(["-c", config_file])
+    #
+    # server = f"http://localhost:{port}"
+    # ps = Popen(command, env=env)
+
     if "-p" in command_line_args:
         port = int(command_line_args[command_line_args.index("-p") + 1])
     elif "--port" in command_line_args:
@@ -159,19 +194,107 @@ def start_test_server(command_line_args=[], app_config=None, env=None):
         start = random.randint(DEFAULT_SERVER_PORT, 2 ** 16 - 1)
         port = int(os.environ.get("CXG_SERVER_PORT", start))
         port = find_available_port("localhost", port)
-        command += ["--port=%d" % port]
 
-    command += command_line_args
+    app_config = AppConfig()
+    server_config = app_config.server_config
+    app_config.update_server_config(
+        app__verbose=True,
+        app__debug=True,
+        app__port=port,
+        app__host="localhost",
+        app__open_browser=False
+    )
+    try:
+        if app_config_info:
+            app_config.update_from_config_file(app_config_info)
 
-    tempdir = None
-    if app_config:
-        tempdir = tempfile.TemporaryDirectory()
-        config_file = os.path.join(tempdir.name, "config.yaml")
-        app_config.write_config(config_file)
-        command.extend(["-c", config_file])
 
-    server = f"http://localhost:{port}"
-    ps = Popen(command, env=env)
+        # Determine which config options were give on the command line.
+        # Those will override the ones provided in the config file (if provided).
+        # cli_config = AppConfig()
+        # cli_config.update_server_config(
+        #     # app__verbose=verbose,
+        #     # app__debug=debug,
+        #     # app__host=host,
+        #     # app__port=port,
+        #     # app__open_browser=open_browser,
+        #     single_dataset__datapath=datapath,
+        #     single_dataset__title=title,
+        #     single_dataset__about=about,
+        #     single_dataset__obs_names=obs_names,
+        #     single_dataset__var_names=var_names,
+        #     multi_dataset__dataroot=dataroot,
+        #     adaptor__anndata_adaptor__backed=backed,
+        # )
+        # cli_config.update_default_dataset_config(
+        #     app__scripts=scripts,
+        #     user_annotations__enable=not disable_annotations,
+        #     user_annotations__local_file_csv__file=annotations_file,
+        #     user_annotations__local_file_csv__directory=annotations_dir,
+        #     user_annotations__ontology__enable=experimental_annotations_ontology,
+        #     user_annotations__ontology__obo_location=experimental_annotations_ontology_obo,
+        #     presentation__max_categories=max_category_items,
+        #     presentation__custom_colors=not disable_custom_colors,
+        #     embeddings__names=embedding,
+        #     embeddings__enable_reembedding=experimental_enable_reembedding,
+        #     diffexp__enable=not disable_diffexp,
+        #     diffexp__lfc_cutoff=diffexp_lfc_cutoff,
+        # )
+        #
+        # diff = cli_config.server_config.changes_from_default()
+        # changes = {key: val for key, val, _ in diff}
+        # app_config.update_server_config(**changes)
+        #
+        # diff = cli_config.default_dataset_config.changes_from_default()
+        # changes = {key: val for key, val, _ in diff}
+        # app_config.update_default_dataset_config(**changes)
+
+        # process the configuration
+        #  any errors will be thrown as an exception.
+        #  any info messages will be passed to the messagefn function.
+
+        def messagefn(message):
+            click.echo("[cellxgene] " + message)
+
+        # Use a default secret if one is not provided
+        if not server_config.app__flask_secret_key:
+            app_config.update_server_config(app__flask_secret_key="SparkleAndShine")
+
+        app_config.complete_config(messagefn)
+
+    except (ConfigurationError, DatasetAccessError) as e:
+        raise click.ClickException(e)
+
+
+    # create the server
+    server = CliLaunchServer(app_config)
+
+    if not server_config.app__verbose:
+        log = logging.getLogger("werkzeug")
+        log.setLevel(logging.ERROR)
+
+    cellxgene_url = f"http://{app_config.server_config.app__host}:{app_config.server_config.app__port}"
+    click.echo(f"[cellxgene] Launching! Please go to {cellxgene_url} in your browser.")
+
+    click.echo("[cellxgene] Type CTRL-C at any time to exit.")
+
+    if not server_config.app__verbose:
+        f = open(os.devnull, "w")
+        sys.stdout = f
+
+    try:
+        server.app.run(
+            host=server_config.app__host,
+            debug=server_config.app__debug,
+            port=server_config.app__port,
+            threaded=not server_config.app__debug,
+            use_debugger=False,
+            use_reloader=False,
+        )
+    except OSError as e:
+        if e.errno == errno.EADDRINUSE:
+            raise click.ClickException("Port is in use, please specify an open port using the --port flag.") from e
+        raise
 
     for _ in range(10):
         try:
@@ -180,8 +303,8 @@ def start_test_server(command_line_args=[], app_config=None, env=None):
         except requests.exceptions.ConnectionError:
             time.sleep(1)
 
-    if tempdir:
-        tempdir.cleanup()
+    # if tempfile.tempdir:
+    #     tempdir.cleanup()
 
     return ps, server
 

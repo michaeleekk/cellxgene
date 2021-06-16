@@ -113,6 +113,9 @@ def handle_request_exception(error):
 
 
 def get_data_adaptor(url_dataroot=None, dataset=None):
+    import pdb
+    pdb.set_trace()
+    assert 1 == 2
     config = current_app.app_config
     server_config = config.server_config
     dataset_key = None
@@ -183,9 +186,6 @@ def rest_get_data_adaptor(func):
 
     return wrapped_function
 
-
-def get_dataset_uri():
-    pass
 
 
 def dataroot_test_index():

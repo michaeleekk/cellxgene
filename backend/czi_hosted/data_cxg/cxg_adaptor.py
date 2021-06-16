@@ -32,8 +32,6 @@ class CxgAdaptor(DataAdaptor):
         self.url = data_locator.uri_or_path
         if self.url[-1] != "/":
             self.url += "/"
-        import pdb
-        pdb.set_trace()
         # caching immutable state
         self.lsuri_results = ImmutableKVCache(lambda key: self._lsuri(uri=key, tiledb_ctx=self.tiledb_ctx))
         self.arrays = ImmutableKVCache(lambda key: self._open_array(uri=key, tiledb_ctx=self.tiledb_ctx))

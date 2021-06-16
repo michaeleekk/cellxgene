@@ -116,7 +116,7 @@ class BaseConfig(object):
         mapping = self.create_mapping(config)
         for attr, (key, value) in mapping.items():
             if not hasattr(self, attr):
-                raise ConfigurationError(f"Unknown key from config file: {prefix}__{attr}")
+                raise ConfigurationError(f"CUnknown key from config file: {prefix}__{attr}")
             setattr(self, attr, value)
 
             self.attr_checked[attr] = False

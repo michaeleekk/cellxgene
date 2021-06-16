@@ -1,0 +1,36 @@
+
+dataset:
+  app:
+    scripts: [] #list of strs (filenames) or dicts containing keys
+    inline_scripts: [] #list of strs (filenames)
+
+    about_legal_tos: null
+    about_legal_privacy: null
+
+    authentication_enable: true
+
+  presentation:
+    max_categories: 1000
+    custom_colors: true
+
+  user_annotations:
+    enable: true
+    type: local_file_csv
+    hosted_tiledb_array:
+      db_uri: null
+      hosted_file_directory: null
+    local_file_csv:
+      directory: null
+      file: null
+    ontology:
+      enable: false
+      obo_location: null
+
+  embeddings:
+    names: []
+    enable_reembedding: false
+
+  diffexp:
+    enable: true
+    lfc_cutoff: 0.02
+    top_n: 15

@@ -21,7 +21,8 @@ f"""server:
 
   data_locator:
     s3:
-      region_name: {data_locater_region_name}
+      region_name: {data_locator_region_name}
+    api_base: {data_locator_api_base}
 
   adaptor:
     anndata_adaptor:

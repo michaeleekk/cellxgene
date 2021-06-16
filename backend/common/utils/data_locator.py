@@ -6,8 +6,6 @@ import boto3
 import botocore
 from urllib.parse import urlparse
 
-from backend.czi_hosted.common.config import server_config
-
 
 class DataLocator:
     """
@@ -32,6 +30,8 @@ class DataLocator:
 
     def __init__(self, uri_or_path, region_name=None):
         if isinstance(uri_or_path, DataLocator):
+            import pdb
+            pdb.set_trace()
             locator = uri_or_path
             self.uri_or_path = locator.uri_or_path
             self.protocol = locator.protocol
@@ -50,8 +50,6 @@ class DataLocator:
                 self.fs = fsspec.filesystem(self.protocol, listings_expiry_time=30, config_kwargs=config_kwargs)
             else:
                 self.fs = fsspec.filesystem(self.protocol, listings_expiry_time=30)
-        if self.protocol == "https":
-
         else:
             self.fs = fsspec.filesystem(self.protocol)
 
@@ -68,12 +66,6 @@ class DataLocator:
             if len(protocol) > 1:
                 return protocol, path
         return None, uri_or_path
-
-    def get_uri_from_data_portal(self):
-        explorer_base_url = server_config.app__web_base_url
-        p
-
-
 
     def exists(self):
         return self.fs.exists(self.cname)
