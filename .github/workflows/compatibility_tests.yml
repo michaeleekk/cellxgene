@@ -130,5 +130,5 @@ jobs:
     #   run: make smoke-test
     # FIXME: Fails intermittently. See https://app.zenhub.com/workspaces/single-cell-5e2a191dad828d52cc78b028/issues/chanzuckerberg/cellxgene/2415
     - name: Smoke Tests with Annotations
-      run: make smoke-test-annotations
+      run: make smoke-test-annotations || make smoke-test-annotations || make smoke-test-annotations
 
