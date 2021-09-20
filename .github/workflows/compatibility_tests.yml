@@ -13,7 +13,7 @@ name: Compatibility Tests
 on:
   push:
     branches:
-      - atolopko/2410-update-compatibility-test-matrix
+      - atolopko/2433-fix-compat-smoke-test-annot-failure
 
 env:
   JEST_ENV: prod
