@@ -1,4 +1,4 @@
-PROJECT_ROOT := $(shell git rev-parse --show-toplevel)
+PROJECT_ROOT := $(shell pwd)
 PATH := $(PATH):$(PROJECT_ROOT)/scripts
 
 SHELL := env PATH='$(PATH)' /bin/bash
